@@ -8,10 +8,10 @@ from scipy.optimize import brute
 
 config = dotenv_values("../.env")
 
-class MOMBacktester(object):
+class MRBacktester(object):
 
     '''
-    A simple backtester on momentum strategies
+    A simple backtester on mean reversion strategies
 
     Attributes
     ==========
@@ -33,9 +33,9 @@ class MOMBacktester(object):
     get_data:
         grabs the basic data
     run_strategy:
-        runs the backtest for the Momentum-based strategy
+        runs the backtest for the Mean Reversion strategy
     plot_results:
-        plot the performance of the strategy against the basic investment
+        plot the performance of the strategy against holding the basic investment
         
     '''
 
@@ -76,23 +76,34 @@ class MOMBacktester(object):
         data_df.dropna(inplace=True)
         self.data=data_df
 
-    def run_strategy(self, momentum=1) -> None:
+    def run_strategy(self, sma, threshold) -> None:
         '''
         Backtest Strategy
 
         Parameters
         ==========
-        momentum: int
-            number range to assess momentum
+        SMA: int
+            window for simplae moving average
+        threshold: int
+            the distance between the price and the SMA
+
         '''
-        self.momentum = momentum
         if self.data is None:
             print('Stock data is non-existent')
             return
+        self.threshold = threshold
+        self.sma = sma
+        
         data_df = self.data.copy()
-        data_df['position'] = np.sign(data_df['price'].rolling(momentum).mean())
+        data_df['SMA'] = data_df['price'].rolling(sma).mean()
+        data_df['dist'] = data_df['price'] - data_df['SMA']
+        data_df['position'] = np.where(data_df['dist']>threshold, -1, np.nan)
+        data_df['position'] = np.where(data_df['dist']< -threshold, 1, data_df['position'])
+        data_df['position'] = data_df['position'].ffill().fillna(0)
         data_df['strategy'] = data_df['position'].shift(1) * data_df['returns']
+        # Base returns of investment
         data_df['creturns']  = data_df['returns'].cumsum().apply(np.exp)
+        # Returns based on startegy
         data_df['cstrategy']  = data_df['strategy'].cumsum().apply(np.exp)
         self.results = data_df
 
@@ -109,12 +120,12 @@ class MOMBacktester(object):
         '''
         if self.results is None:
             print("No results to plot yet. Run a strategy")
-        title=f'{self.symbol} | Momentum = {self.momentum}'
+        title=f'{self.symbol} | Threshold = {self.threshold} | SMA = {self.sma}'
         self.results[['creturns', 'cstrategy']].plot(title=title, figsize=(10,6))
         plt.show()
 
     
 if __name__ == "__main__":
-    test_object = MOMBacktester('ivv', 1000, '2014-6-04', '2023-11-09')
-    print(test_object.run_strategy(3))
+    test_object = MRBacktester('ivv', 1000, '2014-6-04', '2023-11-09')
+    print(test_object.run_strategy(30, 5))
     test_object.plot_results()
