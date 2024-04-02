@@ -63,7 +63,8 @@ class LRBackTester(object):
         return data
 
     def prepare_lags(self, start, end):
-        data = self.select_data(start, end)
+        # data = self.select_data(start, end)
+        data=self.data
 
         '''Shift the returns to match with proper date data'''
         self.cols=[]
@@ -83,7 +84,24 @@ class LRBackTester(object):
         self.x_vec=x_vector
 
     def run_strategy(self, train_start, train_end, predict_start, predict_end, lags=3):
-        pass
+        self.lags=lags
+        self.fit_model(train_start, train_end)
+        # self.results = self.select_data(predict_start, predict_end).iloc[lags:]
+        self.results = self.data.iloc[lags:]
+
+        self.prepare_lags(predict_start, predict_end)
+        prediction = np.sign(np.dot(self.lagged_data[self.cols], self.x_vec))
+        self.results['prediction']=prediction
+        self.results['strategy']=self.results['prediction']*self.results['results']
+
+        # Base returns of investment
+        self.results['creturns']  = self.results['returns'].cumsum().apply(np.exp)
+        # Base returns of investment
+        self.results['cstartegy']  = self.results['strategy'].cumsum().apply(np.exp)
+
+        aperf = self.results['cstrategy'].iloc[-1]
+        operf = self.results['creturns'].iloc[-1]
+        return round(aperf, 2), round(operf, 2)
 
     def plot_results(self) -> None:
         '''
@@ -95,4 +113,8 @@ class LRBackTester(object):
         self.results[['creturns', 'cstrategy']].plot(title=title, figsize=(10,6))
         plt.show()
     
+
+if __name__ == '__main__':
+    lrbt = LRBackTester('ivv', '2014-6-04', '2023-11-09')
+    print(lrbt.run_strategy('2014-6-04', '2023-11-09','2014-6-04', '2023-11-09', 5))
     
